@@ -11,9 +11,7 @@ async function getSupabase() {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        getAll() {
-          return cookieStore.getAll()
-        },
+        getAll() { return cookieStore.getAll() },
         setAll(cookiesToSet) {
           cookiesToSet.forEach(({ name, value, options }) =>
             cookieStore.set(name, value, options)
@@ -36,14 +34,8 @@ export async function signInWithGoogle() {
   redirect(data.url)
 }
 
-export async function signInWithApple() {
+export async function signOut() {
   const supabase = await getSupabase()
-  const { data, error } = await supabase.auth.signInWithOAuth({
-    provider: 'apple',
-    options: {
-      redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'}/auth/callback`,
-    },
-  })
-  if (error || !data.url) redirect('/?error=auth')
-  redirect(data.url)
+  await supabase.auth.signOut()
+  redirect('/')
 }
