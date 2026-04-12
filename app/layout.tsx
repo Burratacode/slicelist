@@ -1,6 +1,5 @@
 import type { Metadata } from 'next'
 import './globals.css'
-import BottomNav from '@/components/BottomNav'
 
 export const metadata: Metadata = {
   title: 'Slicelist',
@@ -15,10 +14,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="bg-white antialiased">
-        <main className="max-w-lg mx-auto min-h-screen pb-16">
-          {children}
-        </main>
-        <BottomNav />
+        {children}
       </body>
     </html>
   )
