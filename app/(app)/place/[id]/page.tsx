@@ -6,35 +6,60 @@ import PlaceDetail from '@/components/PlaceDetail'
 export default async function PlacePage({ params }: { params: { id: string } }) {
   const { id } = params
 
-  // Google-only place — fetch details and add to Supabase, then redirect to review
+  // Google-only place — fetch details, add to Supabase, redirect to review
   if (id.startsWith('g_')) {
     const googlePlaceId = id.slice(2)
-    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'
+    const cookieStore = await cookies()
+    const supabaseG = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() { return cookieStore.getAll() },
+          setAll(cookiesToSet) {
+            cookiesToSet.forEach(({ name, value, options }) =>
+              cookieStore.set(name, value, options)
+            )
+          },
+        },
+      }
+    )
 
     try {
-      // Fetch place details from Google
+      // Check if already in Supabase
+      const { data: existing } = await supabaseG
+        .from('places')
+        .select('id')
+        .eq('google_place_id', googlePlaceId)
+        .single()
+
+      if (existing?.id) {
+        const { redirect } = await import('next/navigation')
+        redirect(`/review/${existing.id}`)
+      }
+
+      // Fetch from Google Places API
       const detailsRes = await fetch(
-        `https://maps.googleapis.com/maps/api/place/details/json?place_id=${googlePlaceId}&fields=name,formatted_address,types&key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY}`,
-        { next: { revalidate: 0 } }
+        `https://maps.googleapis.com/maps/api/place/details/json?place_id=${googlePlaceId}&fields=name,formatted_address,vicinity&key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY}`
       )
       const detailsJson = await detailsRes.json()
       const result = detailsJson.result
 
       if (result?.name) {
-        // Add to Supabase
-        const addRes = await fetch(`${baseUrl}/api/places/add`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
+        const { data: inserted } = await supabaseG
+          .from('places')
+          .insert({
             name: result.name,
-            address: result.formatted_address ?? '',
+            address: result.formatted_address ?? result.vicinity ?? '',
             google_place_id: googlePlaceId,
-          }),
-        })
-        const addJson = await addRes.json()
-        if (addJson.id) {
+            tier: 2,
+          })
+          .select('id')
+          .single()
+
+        if (inserted?.id) {
           const { redirect } = await import('next/navigation')
-          redirect(`/review/${addJson.id}`)
+          redirect(`/review/${inserted.id}`)
         }
       }
     } catch {}
