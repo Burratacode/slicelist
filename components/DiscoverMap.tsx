@@ -203,6 +203,12 @@ export default function DiscoverMap({ supabasePlaces, reviewStats, googleMapsKey
     )
   }, [])
 
+  // If Maps script is already loaded (e.g. navigating back), set ready immediately
+  useEffect(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    if ((window as any).google?.maps) setMapsReady(true)
+  }, [])
+
   const initMap = useCallback(async () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const g = (window as any).google

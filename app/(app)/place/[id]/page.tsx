@@ -1,6 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import PlaceDetail from '@/components/PlaceDetail'
 
 export default async function PlacePage({ params }: { params: { id: string } }) {
@@ -25,6 +25,10 @@ export default async function PlacePage({ params }: { params: { id: string } }) 
       }
     )
 
+    // NOTE: redirect() must be called outside try/catch — it works by throwing
+    // a special error that try/catch would swallow.
+    let redirectId: string | null = null
+
     try {
       // Check if already in Supabase
       const { data: existing } = await supabaseG
@@ -34,41 +38,39 @@ export default async function PlacePage({ params }: { params: { id: string } }) 
         .single()
 
       if (existing?.id) {
-        const { redirect } = await import('next/navigation')
-        redirect(`/review/${existing.id}`)
-      }
+        redirectId = existing.id
+      } else {
+        // Fetch from Google Places API
+        const detailsRes = await fetch(
+          `https://maps.googleapis.com/maps/api/place/details/json?place_id=${googlePlaceId}&fields=name,formatted_address,vicinity&key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY}`
+        )
+        const detailsJson = await detailsRes.json()
+        const result = detailsJson.result
 
-      // Fetch from Google Places API
-      const detailsRes = await fetch(
-        `https://maps.googleapis.com/maps/api/place/details/json?place_id=${googlePlaceId}&fields=name,formatted_address,vicinity&key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY}`
-      )
-      const detailsJson = await detailsRes.json()
-      const result = detailsJson.result
+        if (result?.name) {
+          const { data: inserted } = await supabaseG
+            .from('places')
+            .insert({
+              name: result.name,
+              address: result.formatted_address ?? result.vicinity ?? '',
+              google_place_id: googlePlaceId,
+              tier: 2,
+            })
+            .select('id')
+            .single()
 
-      if (result?.name) {
-        const { data: inserted } = await supabaseG
-          .from('places')
-          .insert({
-            name: result.name,
-            address: result.formatted_address ?? result.vicinity ?? '',
-            google_place_id: googlePlaceId,
-            tier: 2,
-          })
-          .select('id')
-          .single()
-
-        if (inserted?.id) {
-          const { redirect } = await import('next/navigation')
-          redirect(`/review/${inserted.id}`)
+          if (inserted?.id) redirectId = inserted.id
         }
       }
-    } catch {}
+    } catch { /* fall through to error state */ }
+
+    if (redirectId) redirect(`/review/${redirectId}`)
 
     return (
       <div className="flex flex-col items-center justify-center min-h-screen px-6 text-center">
         <p className="text-5xl mb-4">🍕</p>
-        <h1 className="text-xl font-bold text-gray-900 mb-2">Not on Slicelist yet</h1>
-        <p className="text-sm text-gray-400">Search for this place to add it.</p>
+        <h1 className="text-xl font-bold text-gray-900 mb-2">Couldn&apos;t load this place</h1>
+        <p className="text-sm text-gray-400">Try searching for it instead.</p>
       </div>
     )
   }
