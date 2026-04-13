@@ -25,6 +25,55 @@ const DEFAULT_SCORES: Record<ScoreKey, number> = { crust: 7, sauce: 7, cheese: 7
 const MAX_PHOTOS = 3
 const MAX_NOTE = 280
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function checkAndAwardBadges(supabase: any, userId: string) {
+  const [{ data: reviews }, { data: earned }, { data: allBadges }] = await Promise.all([
+    supabase.from('reviews').select('id, overall_score, place_id, places(style)').eq('user_id', userId),
+    supabase.from('user_badges').select('badge_id, badges(slug)').eq('user_id', userId),
+    supabase.from('badges').select('id, slug'),
+  ])
+
+  if (!reviews || !allBadges) return
+
+  const earnedSlugs = new Set<string>(
+    (earned ?? []).map((e: { badges: { slug: string } | null }) => e.badges?.slug).filter(Boolean)
+  )
+  const badgeMap = new Map<string, string>(allBadges.map((b: { id: string; slug: string }) => [b.slug, b.id]))
+
+  const reviewCount = reviews.length
+  const uniquePlaces = new Set(reviews.map((r: { place_id: string }) => r.place_id)).size
+  const scores = reviews.map((r: { overall_score: number | null }) => r.overall_score).filter((s: number | null): s is number => s != null)
+  const avgScore = scores.length > 0 ? scores.reduce((a: number, b: number) => a + b, 0) / scores.length : 0
+
+  const styleCounts: Record<string, number> = {}
+  for (const r of reviews) {
+    const style = r.places?.style
+    if (style) styleCounts[style] = (styleCounts[style] ?? 0) + 1
+  }
+
+  const rules: [string, boolean][] = [
+    ['first-slice',       reviewCount >= 1],
+    ['five-slices',       reviewCount >= 5],
+    ['ten-slices',        reviewCount >= 10],
+    ['twenty-five-slices',reviewCount >= 25],
+    ['fifty-slices',      reviewCount >= 50],
+    ['century',           reviewCount >= 100],
+    ['explorer',          uniquePlaces >= 10],
+    ['borough-hopper',    uniquePlaces >= 20],
+    ['critic',            avgScore > 0 && scores.length >= 10],
+    ['neapolitan-lover',  (styleCounts['Neapolitan'] ?? 0) >= 5],
+    ['sicilian-fan',      (styleCounts['Sicilian'] ?? 0) >= 5],
+    ['classic-ny',        (styleCounts['NY Classic'] ?? 0) >= 10],
+    ['perfect-ten',       scores.some((s: number) => s >= 9.5)],
+  ]
+
+  for (const [slug, condition] of rules) {
+    if (condition && !earnedSlugs.has(slug) && badgeMap.has(slug)) {
+      await supabase.from('user_badges').insert({ user_id: userId, badge_id: badgeMap.get(slug) })
+    }
+  }
+}
+
 export default function ReviewForm({ place, userId }: { place: Place; userId: string }) {
   const router = useRouter()
   const [scores, setScores] = useState<Record<ScoreKey, number>>(DEFAULT_SCORES)
@@ -113,15 +162,8 @@ export default function ReviewForm({ place, userId }: { place: Place; userId: st
     if (!error) {
       setIsFirst(count === 0)
       setSuccess(true)
-      // Trigger badge check in background
-      fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/check-badges`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY}`,
-        },
-        body: JSON.stringify({ user_id: userId }),
-      }).catch(() => {})
+      // Check and award badges in background
+      checkAndAwardBadges(supabase, userId).catch(() => {})
       setTimeout(() => router.push(`/place/${place.id}`), 2500)
     }
   }
