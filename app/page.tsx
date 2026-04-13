@@ -35,31 +35,26 @@ export default async function Home() {
         <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-white to-transparent" />
       </div>
 
-      {/* Content — centered in remaining space */}
-      <div className="flex flex-col items-center justify-between flex-1 px-6 pb-10 pt-2">
-        <div className="flex flex-col items-center gap-3 w-full max-w-sm">
-          <h1 className="text-6xl font-black tracking-tight text-[#E83A00]">
-            SLICELIST
-          </h1>
-          <p className="text-gray-500 text-base text-center">
-            NYC pizza, ranked by real people
-          </p>
-        </div>
-
-        <div className="w-full max-w-sm flex flex-col gap-3 mt-8">
-          <form action={signInWithGoogle}>
-            <button
-              type="submit"
-              className="w-full flex items-center justify-center gap-3 h-12 rounded-xl border border-gray-200 bg-white text-gray-800 font-medium text-sm shadow-sm active:scale-95 transition-transform"
-            >
-              <GoogleIcon />
-              Sign in with Google
-            </button>
-          </form>
-          <p className="text-center text-xs text-gray-400">
-            By signing in you agree to our Terms of Service
-          </p>
-        </div>
+      {/* Content */}
+      <div className="flex flex-col items-center px-6 pt-4 pb-10 w-full max-w-sm mx-auto gap-4">
+        <h1 className="text-6xl font-black tracking-tight text-[#E83A00]">
+          SLICELIST
+        </h1>
+        <p className="text-gray-500 text-base text-center">
+          NYC pizza, ranked by real people
+        </p>
+        <form action={signInWithGoogle} className="w-full mt-1">
+          <button
+            type="submit"
+            className="w-full flex items-center justify-center gap-3 h-12 rounded-xl border border-gray-200 bg-white text-gray-800 font-medium text-sm shadow-sm active:scale-95 transition-transform"
+          >
+            <GoogleIcon />
+            Sign in with Google
+          </button>
+        </form>
+        <p className="text-center text-xs text-gray-400">
+          By signing in you agree to our Terms of Service
+        </p>
       </div>
     </div>
   )
