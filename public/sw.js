@@ -1,5 +1,5 @@
 // Slicelist Service Worker
-const CACHE_NAME = 'slicelist-v1'
+const CACHE_NAME = 'slicelist-v2'
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -20,8 +20,9 @@ self.addEventListener('activate', (event) => {
 })
 
 self.addEventListener('fetch', (event) => {
-  // Network-first strategy: try network, fall back to cache
   if (event.request.method !== 'GET') return
+  // Only handle same-origin requests — let Google Maps and other external APIs pass through untouched
+  if (!event.request.url.startsWith(self.location.origin)) return
   event.respondWith(
     fetch(event.request)
       .then((res) => {
