@@ -25,6 +25,8 @@ const DEFAULT_SCORES: Record<ScoreKey, number> = { crust: 7, sauce: 7, cheese: 7
 const MAX_PHOTOS = 3
 const MAX_NOTE = 280
 
+const SLICE_TYPES = ['Plain', 'Pepperoni', 'Margherita', 'White', 'Sicilian', 'Grandma', 'Vodka', 'Other']
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function checkAndAwardBadges(supabase: any, userId: string) {
   const [{ data: reviews }, { data: earned }, { data: allBadges }] = await Promise.all([
@@ -83,6 +85,8 @@ export default function ReviewForm({ place, userId }: { place: Place; userId: st
   const [submitting, setSubmitting] = useState(false)
   const [success, setSuccess] = useState(false)
   const [isFirst, setIsFirst] = useState(false)
+  const [sliceType, setSliceType] = useState('')
+  const [sliceTypeOther, setSliceTypeOther] = useState('')
   const fileRef = useRef<HTMLInputElement>(null)
 
   const overall = SLIDERS.reduce((sum, s) => sum + scores[s.key] * s.weight, 0)
@@ -145,6 +149,8 @@ export default function ReviewForm({ place, userId }: { place: Place; userId: st
       .select('*', { count: 'exact', head: true })
       .eq('place_id', place.id)
 
+    const finalSliceType = sliceType === 'Other' ? sliceTypeOther.trim() : sliceType
+
     const { error } = await supabase.from('reviews').insert({
       user_id: userId,
       place_id: place.id,
@@ -156,6 +162,7 @@ export default function ReviewForm({ place, userId }: { place: Place; userId: st
       overall_score: parseFloat(overall.toFixed(2)),
       note: note.trim() || null,
       photo_urls: photoUrls.length > 0 ? photoUrls : null,
+      slice_type: finalSliceType || null,
     })
 
     setSubmitting(false)
@@ -198,8 +205,35 @@ export default function ReviewForm({ place, userId }: { place: Place; userId: st
         </p>
       </div>
 
+      {/* Slice type picker */}
+      <div className="px-4 pt-4">
+        <p className="text-sm font-semibold text-gray-700 mb-2">What did you have?</p>
+        <div className="flex flex-wrap gap-2">
+          {SLICE_TYPES.map((t) => (
+            <button
+              key={t}
+              onClick={() => setSliceType(sliceType === t ? '' : t)}
+              className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${
+                sliceType === t
+                  ? 'bg-[#E83A00] text-white border-[#E83A00]'
+                  : 'bg-white text-gray-600 border-gray-200'
+              }`}
+            >{t}</button>
+          ))}
+        </div>
+        {sliceType === 'Other' && (
+          <input
+            type="text"
+            value={sliceTypeOther}
+            onChange={(e) => setSliceTypeOther(e.target.value.slice(0, 40))}
+            placeholder="What slice?"
+            className="mt-2 w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#E83A00]"
+          />
+        )}
+      </div>
+
       {/* Overall score display */}
-      <div className="flex items-center justify-center py-5 bg-orange-50">
+      <div className="flex items-center justify-center py-5 bg-orange-50 mt-4">
         <div className="text-center">
           <p className="text-6xl font-black text-[#E83A00] leading-none">{overall.toFixed(1)}</p>
           <p className="text-xs text-gray-400 mt-1">Overall score</p>

@@ -118,43 +118,40 @@ function PlaceCard({ place, reviewStats, onClick }: {
               {[place.neighborhood, place.style].filter(Boolean).join(' · ') || place.address}
             </p>
           </div>
-          <div className="flex items-center gap-1.5">
-            {place.distanceMiles != null && (
-              <span className="text-xs text-gray-400">
-                {place.distanceMiles < 0.1 ? '<0.1 mi' : `${place.distanceMiles.toFixed(1)} mi`}
-              </span>
-            )}
-            {place.barstoolScore != null && (
-              <span className="text-xs font-semibold text-white bg-gray-800 rounded-full px-2 py-0.5">
-                BS {place.barstoolScore.toFixed(1)}
-              </span>
-            )}
-          </div>
+          {place.distanceMiles != null && (
+            <span className="text-xs text-gray-400">
+              {place.distanceMiles < 0.1 ? '<0.1 mi' : `${place.distanceMiles.toFixed(1)} mi`}
+            </span>
+          )}
         </div>
 
-        {/* Score — right */}
-        <div className="shrink-0 w-16 h-20 flex flex-col items-center justify-center border-l border-gray-100">
-          {stats ? (
-            <>
-              <span className="text-lg leading-none">{stats.avg >= 8.5 ? '🔥' : '⭐'}</span>
-              <span className="text-lg font-black text-[#E83A00] leading-tight mt-0.5">
-                {stats.avg.toFixed(1)}
-              </span>
-              <span className="text-[9px] text-gray-400">{stats.count} rev</span>
-            </>
-          ) : place.inSupabase ? (
-            <>
-              <span className="text-lg">🍕</span>
-              <span className="text-[9px] text-[#E83A00] font-semibold mt-1 text-center leading-tight px-1">
-                Be first!
-              </span>
-            </>
-          ) : (
-            <>
-              <span className="text-lg">📍</span>
-              <span className="text-[9px] text-gray-400 mt-1">Unrated</span>
-            </>
-          )}
+        {/* Scores — right: Barstool top, Slicelist bottom */}
+        <div className="shrink-0 w-20 h-20 flex flex-col border-l border-gray-100">
+          {/* Barstool */}
+          <div className="flex-1 flex flex-col items-center justify-center border-b border-gray-100">
+            {place.barstoolScore != null ? (
+              <>
+                <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wide">Barstool</span>
+                <span className="text-sm font-black text-gray-800 leading-tight">{place.barstoolScore.toFixed(1)}</span>
+              </>
+            ) : (
+              <span className="text-[9px] text-gray-300">No BS</span>
+            )}
+          </div>
+          {/* Slicelist */}
+          <div className="flex-1 flex flex-col items-center justify-center">
+            {stats ? (
+              <>
+                <span className="text-[9px] font-bold text-[#E83A00] uppercase tracking-wide">Slicelist</span>
+                <span className="text-sm font-black text-[#E83A00] leading-tight">{stats.avg.toFixed(1)}</span>
+                <span className="text-[8px] text-gray-400">{stats.count} rev</span>
+              </>
+            ) : place.inSupabase ? (
+              <span className="text-[9px] text-[#E83A00] font-semibold text-center leading-tight px-1">Be first!</span>
+            ) : (
+              <span className="text-[9px] text-gray-400">Unrated</span>
+            )}
+          </div>
         </div>
       </div>
     </button>
