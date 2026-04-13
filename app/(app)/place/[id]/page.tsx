@@ -6,8 +6,39 @@ import PlaceDetail from '@/components/PlaceDetail'
 export default async function PlacePage({ params }: { params: { id: string } }) {
   const { id } = params
 
-  // Google-only place (not in Supabase yet)
+  // Google-only place — fetch details and add to Supabase, then redirect to review
   if (id.startsWith('g_')) {
+    const googlePlaceId = id.slice(2)
+    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'
+
+    try {
+      // Fetch place details from Google
+      const detailsRes = await fetch(
+        `https://maps.googleapis.com/maps/api/place/details/json?place_id=${googlePlaceId}&fields=name,formatted_address,types&key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY}`,
+        { next: { revalidate: 0 } }
+      )
+      const detailsJson = await detailsRes.json()
+      const result = detailsJson.result
+
+      if (result?.name) {
+        // Add to Supabase
+        const addRes = await fetch(`${baseUrl}/api/places/add`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: result.name,
+            address: result.formatted_address ?? '',
+            google_place_id: googlePlaceId,
+          }),
+        })
+        const addJson = await addRes.json()
+        if (addJson.id) {
+          const { redirect } = await import('next/navigation')
+          redirect(`/review/${addJson.id}`)
+        }
+      }
+    } catch {}
+
     return (
       <div className="flex flex-col items-center justify-center min-h-screen px-6 text-center">
         <p className="text-5xl mb-4">🍕</p>
