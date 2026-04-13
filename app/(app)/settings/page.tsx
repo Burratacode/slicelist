@@ -1,9 +1,9 @@
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
-import { signOut } from '@/app/actions/auth'
+import SettingsView from '@/components/SettingsView'
 
-export default async function ProfilePage() {
+export default async function SettingsPage() {
   const cookieStore = await cookies()
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -25,21 +25,11 @@ export default async function ProfilePage() {
 
   const { data: profile } = await supabase
     .from('users')
-    .select('username')
+    .select('id, username, bio, borough, avatar_url')
     .eq('id', user.id)
     .single()
 
-  if (profile?.username) redirect(`/profile/${profile.username}`)
+  if (!profile) redirect('/onboarding')
 
-  // Fallback if no profile
-  return (
-    <div className="flex flex-col items-center justify-center min-h-screen px-6">
-      <p className="text-gray-500 mb-6">No profile found.</p>
-      <form action={signOut}>
-        <button type="submit" className="px-6 py-3 rounded-xl border border-gray-200 text-gray-600 text-sm font-medium">
-          Sign out
-        </button>
-      </form>
-    </div>
-  )
+  return <SettingsView profile={profile} />
 }

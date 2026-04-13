@@ -161,6 +161,13 @@ function PlaceCard({ place, reviewStats, onClick }: {
   )
 }
 
+const STYLE_FILTERS = ['All', 'NY Classic', 'Neapolitan', 'Sicilian', 'Detroit', 'Wood-fired']
+
+type SearchSuggestion = {
+  placeId: string
+  description: string
+}
+
 export default function DiscoverMap({ supabasePlaces, reviewStats, googleMapsKey }: {
   supabasePlaces: SupabasePlace[]
   reviewStats: ReviewStats
@@ -173,6 +180,18 @@ export default function DiscoverMap({ supabasePlaces, reviewStats, googleMapsKey
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null)
   const [places, setPlaces] = useState<MergedPlace[]>([])
   const [loading, setLoading] = useState(true)
+  const [activeFilter, setActiveFilter] = useState('All')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [suggestions, setSuggestions] = useState<SearchSuggestion[]>([])
+  const [searchLoading, setSearchLoading] = useState(false)
+  const [previewPlace, setPreviewPlace] = useState<{
+    placeId: string
+    name: string
+    address: string
+    photoRef?: string
+    existingId?: string
+  } | null>(null)
+  const autocompleteService = useRef<any>(null) // eslint-disable-line @typescript-eslint/no-explicit-any
   const router = useRouter()
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const markersRef = useRef<any[]>([])
@@ -312,15 +331,173 @@ export default function DiscoverMap({ supabasePlaces, reviewStats, googleMapsKey
     if (mapsReady && userLocation) initMap()
   }, [mapsReady, userLocation, initMap])
 
+  // Init autocomplete service once Maps is ready
+  useEffect(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const g = (window as any).google
+    if (mapsReady && g) {
+      autocompleteService.current = new g.maps.places.AutocompleteService()
+    }
+  }, [mapsReady])
+
+  // Debounced autocomplete
+  useEffect(() => {
+    if (!searchQuery.trim() || !autocompleteService.current) {
+      setSuggestions([])
+      return
+    }
+    const timer = setTimeout(() => {
+      setSearchLoading(true)
+      autocompleteService.current.getPlacePredictions(
+        {
+          input: searchQuery,
+          types: ['establishment'],
+          componentRestrictions: { country: 'us' },
+          location: { lat: () => 40.7128, lng: () => -74.0060 },
+          radius: 50000,
+          keyword: 'pizza',
+        },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (results: any[], status: string) => {
+          setSearchLoading(false)
+          if (status === 'OK' && results) {
+            setSuggestions(results.map((r) => ({
+              placeId: r.place_id,
+              description: r.description,
+            })))
+          } else {
+            setSuggestions([])
+          }
+        }
+      )
+    }, 350)
+    return () => clearTimeout(timer)
+  }, [searchQuery])
+
+  const handleSuggestionTap = async (suggestion: SearchSuggestion) => {
+    setSearchQuery(suggestion.description)
+    setSuggestions([])
+
+    // Check if place exists in Supabase by google_place_id
+    const existing = supabasePlaces.find((sp) =>
+      // We don't have google_place_id in props, so check by name match as fallback
+      namesMatch(sp.name, suggestion.description.split(',')[0])
+    )
+
+    if (existing) {
+      router.push(`/place/${existing.id}`)
+      return
+    }
+
+    // Fetch details from Google to build preview
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const g = (window as any).google
+    const service = new g.maps.places.PlacesService(mapInstance.current)
+    service.getDetails(
+      { placeId: suggestion.placeId, fields: ['name', 'formatted_address', 'photos'] },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (place: any, status: string) => {
+        if (status === 'OK') {
+          setPreviewPlace({
+            placeId: suggestion.placeId,
+            name: place.name,
+            address: place.formatted_address,
+            photoRef: place.photos?.[0]?.photo_reference,
+          })
+        }
+      }
+    )
+  }
+
+  const handleAddToSlicelist = async () => {
+    if (!previewPlace) return
+    const res = await fetch('/api/places/add', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: previewPlace.name,
+        address: previewPlace.address,
+        google_place_id: previewPlace.placeId,
+      }),
+    })
+    const data = await res.json()
+    if (data.id) router.push(`/review/${data.id}`)
+  }
+
+  const filteredPlaces = activeFilter === 'All'
+    ? places
+    : places.filter((p) => p.style === activeFilter)
+
   return (
     <>
       <Script
-        src={`https://maps.googleapis.com/maps/api/js?key=${googleMapsKey}`}
+        src={`https://maps.googleapis.com/maps/api/js?key=${googleMapsKey}&libraries=places`}
         strategy="afterInteractive"
         onLoad={() => setMapsReady(true)}
       />
 
       <div className="flex flex-col" style={{ height: 'calc(100dvh - 4rem)' }}>
+        {/* Search bar */}
+        <div className="relative bg-white px-3 pt-3 pb-1 z-20">
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => { setSearchQuery(e.target.value); setPreviewPlace(null) }}
+            placeholder="Search any NYC pizza spot…"
+            className="w-full h-10 px-4 rounded-full bg-gray-100 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#E83A00]"
+          />
+          {searchQuery.length > 0 && (
+            <button
+              onClick={() => { setSearchQuery(''); setSuggestions([]); setPreviewPlace(null) }}
+              className="absolute right-6 top-1/2 -translate-y-0 text-gray-400 text-lg pr-1 pt-3"
+            >×</button>
+          )}
+          {/* Suggestions dropdown */}
+          {suggestions.length > 0 && (
+            <div className="absolute left-3 right-3 top-14 bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden z-30">
+              {searchLoading && (
+                <p className="text-xs text-gray-400 px-4 py-2">Searching…</p>
+              )}
+              {suggestions.map((s) => (
+                <button
+                  key={s.placeId}
+                  onClick={() => handleSuggestionTap(s)}
+                  className="w-full text-left px-4 py-3 text-sm text-gray-800 border-b border-gray-50 last:border-0 active:bg-gray-50"
+                >
+                  🍕 {s.description}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Preview card for unrecognised place */}
+        {previewPlace && (
+          <div className="bg-white mx-3 mb-2 rounded-2xl border border-gray-100 shadow-sm overflow-hidden z-10">
+            <div className="flex gap-3 p-3">
+              <div className="shrink-0 w-16 h-16 rounded-xl bg-gray-100 overflow-hidden">
+                {previewPlace.photoRef ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={`/api/places/photo?ref=${encodeURIComponent(previewPlace.photoRef)}`} alt={previewPlace.name} className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center"><span className="text-2xl">🍕</span></div>
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-bold text-sm text-gray-900 truncate">{previewPlace.name}</p>
+                <p className="text-xs text-gray-400 truncate mt-0.5">{previewPlace.address}</p>
+                <button
+                  onClick={handleAddToSlicelist}
+                  className="mt-2 px-3 py-1.5 rounded-full bg-[#E83A00] text-white text-xs font-semibold active:scale-95 transition-transform"
+                >
+                  Rate this place — add it to Slicelist
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Map */}
         <div className="relative flex-1 bg-gray-100">
           <div ref={mapRef} className="absolute inset-0" />
           {!mapsReady && (
@@ -330,18 +507,40 @@ export default function DiscoverMap({ supabasePlaces, reviewStats, googleMapsKey
           )}
         </div>
 
-        <div className="h-72 overflow-y-auto bg-gray-50 border-t border-gray-100">
+        {/* Filter pills */}
+        <div className="bg-white border-t border-gray-100 px-3 py-2 overflow-x-auto">
+          <div className="flex gap-2 w-max">
+            {STYLE_FILTERS.map((f) => (
+              <button
+                key={f}
+                onClick={() => setActiveFilter(f)}
+                className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-colors ${
+                  activeFilter === f
+                    ? 'bg-[#E83A00] text-white'
+                    : 'bg-white text-gray-500 border border-gray-200'
+                }`}
+              >
+                {f}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Card list */}
+        <div className="h-64 overflow-y-auto bg-gray-50">
           {loading ? (
             <div className="flex items-center justify-center h-full">
               <p className="text-gray-400 text-sm">Finding nearby pizza…</p>
             </div>
-          ) : places.length === 0 ? (
+          ) : filteredPlaces.length === 0 ? (
             <div className="flex items-center justify-center h-full">
-              <p className="text-gray-400 text-sm">No pizza found nearby</p>
+              <p className="text-gray-400 text-sm">
+                {activeFilter === 'All' ? 'No pizza found nearby' : `No ${activeFilter} spots nearby`}
+              </p>
             </div>
           ) : (
             <div className="p-3 space-y-2">
-              {places.map((place) => (
+              {filteredPlaces.map((place) => (
                 <PlaceCard
                   key={place.id}
                   place={place}
