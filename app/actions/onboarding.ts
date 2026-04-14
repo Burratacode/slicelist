@@ -52,10 +52,14 @@ export async function saveProfile(formData: FormData) {
 
   if (existing) return
 
+  // Grab Google avatar from OAuth metadata
+  const avatarUrl = (user.user_metadata?.avatar_url as string | undefined) ?? null
+
   await supabase.from('users').insert({
     id: user.id,
     username,
     borough: borough || null,
+    avatar_url: avatarUrl,
   })
 
   redirect('/discover')

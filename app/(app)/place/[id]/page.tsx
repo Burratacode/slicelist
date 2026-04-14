@@ -91,6 +91,8 @@ export default async function PlacePage({ params }: { params: { id: string } }) 
     }
   )
 
+  const { data: { user } } = await supabase.auth.getUser()
+
   const [{ data: place }, { data: reviews }] = await Promise.all([
     supabase.from('places').select('*').eq('id', id).single(),
     supabase
@@ -103,11 +105,25 @@ export default async function PlacePage({ params }: { params: { id: string } }) 
 
   if (!place) notFound()
 
+  // Check if current user has wishlisted this place
+  let wishlisted = false
+  if (user) {
+    const { data: wl } = await supabase
+      .from('wishlists')
+      .select('place_id')
+      .eq('user_id', user.id)
+      .eq('place_id', id)
+      .single()
+    wishlisted = !!wl
+  }
+
   return (
     <PlaceDetail
       place={place}
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       reviews={(reviews ?? []) as any}
+      currentUserId={user?.id ?? null}
+      initialWishlisted={wishlisted}
     />
   )
 }

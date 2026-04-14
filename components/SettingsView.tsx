@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { signOut } from '@/app/actions/auth'
@@ -19,18 +19,52 @@ export default function SettingsView({ profile }: { profile: Profile }) {
   const router = useRouter()
   const [bio, setBio] = useState(profile.bio ?? '')
   const [borough, setBorough] = useState(profile.borough ?? '')
+  const [avatarUrl, setAvatarUrl] = useState(profile.avatar_url ?? '')
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [uploadingAvatar, setUploadingAvatar] = useState(false)
   const [showDelete, setShowDelete] = useState(false)
   const [deleteInput, setDeleteInput] = useState('')
   const [deleting, setDeleting] = useState(false)
+  const avatarRef = useRef<HTMLInputElement>(null)
+
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploadingAvatar(true)
+    const supabase = createClient()
+    const path = `avatars/${profile.id}.jpg`
+    // Resize to 256x256
+    const img = new Image()
+    const url = URL.createObjectURL(file)
+    img.onload = async () => {
+      const size = 256
+      const canvas = document.createElement('canvas')
+      canvas.width = size; canvas.height = size
+      const ctx = canvas.getContext('2d')!
+      const min = Math.min(img.width, img.height)
+      const sx = (img.width - min) / 2, sy = (img.height - min) / 2
+      ctx.drawImage(img, sx, sy, min, min, 0, 0, size, size)
+      canvas.toBlob(async (blob) => {
+        if (!blob) { setUploadingAvatar(false); return }
+        await supabase.storage.from('review-photos').upload(path, blob, { contentType: 'image/jpeg', upsert: true })
+        const { data } = supabase.storage.from('review-photos').getPublicUrl(path)
+        const newUrl = data.publicUrl + `?t=${Date.now()}`
+        await supabase.from('users').update({ avatar_url: newUrl }).eq('id', profile.id)
+        setAvatarUrl(newUrl)
+        setUploadingAvatar(false)
+        URL.revokeObjectURL(url)
+      }, 'image/jpeg', 0.9)
+    }
+    img.src = url
+  }
 
   const handleSave = async () => {
     setSaving(true)
     const supabase = createClient()
     await supabase
       .from('users')
-      .update({ bio: bio.trim() || null, borough: borough || null })
+      .update({ bio: bio.trim() || null, borough: borough || null, avatar_url: avatarUrl || null })
       .eq('id', profile.id)
     setSaving(false)
     setSaved(true)
@@ -61,6 +95,33 @@ export default function SettingsView({ profile }: { profile: Profile }) {
       </div>
 
       <div className="px-4 pt-5 space-y-6">
+        {/* Avatar */}
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => avatarRef.current?.click()}
+            disabled={uploadingAvatar}
+            className="relative w-16 h-16 rounded-full bg-[#E83A00] flex items-center justify-center text-white text-xl font-black overflow-hidden shrink-0"
+          >
+            {avatarUrl
+              // eslint-disable-next-line @next/next/no-img-element
+              ? <img src={avatarUrl} alt="" className="w-full h-full object-cover" />
+              : profile.username.slice(0, 2).toUpperCase()}
+            <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
+              <span className="text-xs text-white font-bold">{uploadingAvatar ? '…' : '✏️'}</span>
+            </div>
+          </button>
+          <div>
+            <p className="text-sm font-semibold text-gray-700">Profile photo</p>
+            <button
+              onClick={() => avatarRef.current?.click()}
+              disabled={uploadingAvatar}
+              className="text-xs text-[#E83A00] font-medium mt-0.5"
+            >
+              {uploadingAvatar ? 'Uploading…' : 'Change photo'}
+            </button>
+          </div>
+          <input ref={avatarRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} />
+        </div>
         {/* Bio */}
         <div>
           <label className="block text-sm font-semibold text-gray-700 mb-1.5">Bio</label>

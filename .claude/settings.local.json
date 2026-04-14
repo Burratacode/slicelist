@@ -52,7 +52,8 @@
       "Bash(pandoc --track-changes=all \"/Users/janak/Downloads/Slicelist_Build_Plan_v5.docx\" -o /tmp/slicelist_plan.md)",
       "Bash(python3 scripts/office/unpack.py \"/Users/janak/Downloads/Slicelist_Build_Plan_v5.docx\" /tmp/slicelist_unpacked/)",
       "Bash(unzip -o \"/Users/janak/Downloads/Slicelist_Build_Plan_v5.docx\" -d slicelist_plan_unpacked)",
-      "Bash(node -e ':*)"
+      "Bash(node -e ':*)",
+      "Bash(npx next:*)"
     ]
   }
 }

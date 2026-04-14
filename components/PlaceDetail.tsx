@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
+import { createClient } from '@/lib/supabase'
 
 type Place = {
   id: string
@@ -56,13 +57,30 @@ function Avatar({ username, avatarUrl }: { username: string; avatarUrl: string |
   )
 }
 
-export default function PlaceDetail({ place, reviews }: {
+export default function PlaceDetail({ place, reviews, currentUserId, initialWishlisted }: {
   place: Place
   reviews: Review[]
+  currentUserId: string | null
+  initialWishlisted: boolean
 }) {
   const router = useRouter()
   const [showBreakdown, setShowBreakdown] = useState(false)
   const [googlePhotos, setGooglePhotos] = useState<GooglePhoto[]>([])
+  const [wishlisted, setWishlisted] = useState(initialWishlisted)
+  const [wishlistLoading, setWishlistLoading] = useState(false)
+
+  const toggleWishlist = useCallback(async () => {
+    if (!currentUserId) { router.push('/'); return }
+    setWishlistLoading(true)
+    const supabase = createClient()
+    if (wishlisted) {
+      await supabase.from('wishlists').delete().eq('user_id', currentUserId).eq('place_id', place.id)
+    } else {
+      await supabase.from('wishlists').insert({ user_id: currentUserId, place_id: place.id })
+    }
+    setWishlisted(!wishlisted)
+    setWishlistLoading(false)
+  }, [wishlisted, currentUserId, place.id, router])
 
   const avgScore = reviews.length > 0
     ? reviews.reduce((s, r) => s + (r.overall_score ?? 0), 0) / reviews.length
@@ -216,8 +234,16 @@ export default function PlaceDetail({ place, reviews }: {
         >
           Rate this place
         </button>
-        <button className="flex-1 h-11 rounded-xl border border-gray-200 text-gray-700 font-semibold text-sm active:scale-95 transition-transform">
-          Mark as visited
+        <button
+          onClick={toggleWishlist}
+          disabled={wishlistLoading}
+          className={`flex-1 h-11 rounded-xl border font-semibold text-sm active:scale-95 transition-all ${
+            wishlisted
+              ? 'border-[#E83A00] text-[#E83A00] bg-orange-50'
+              : 'border-gray-200 text-gray-700 bg-white'
+          }`}
+        >
+          {wishlisted ? '🔖 Saved' : '🔖 Want to try'}
         </button>
       </div>
 

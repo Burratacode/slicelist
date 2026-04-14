@@ -65,7 +65,7 @@ export default async function ProfilePage({ params }: { params: { username: stri
   // Resolve user details for followers + following
   const followerIds  = (followerRows  ?? []).map((r) => r.follower_id)
   const followingIds = (followingRows ?? []).map((r) => r.following_id)
-  const allFriendIds = [...new Set([...followerIds, ...followingIds])]
+  const allFriendIds = Array.from(new Set([...followerIds, ...followingIds]))
   let friendUsers: { id: string; username: string; avatar_url: string | null }[] = []
   if (allFriendIds.length > 0) {
     const { data } = await supabase
@@ -75,6 +75,44 @@ export default async function ProfilePage({ params }: { params: { username: stri
   const friendMap = new Map(friendUsers.map((u) => [u.id, u]))
   const followers  = followerIds.map((id) => friendMap.get(id)).filter(Boolean) as typeof friendUsers
   const following  = followingIds.map((id) => friendMap.get(id)).filter(Boolean) as typeof friendUsers
+
+  // Notifications (own profile only): recent likes on my reviews + recent followers
+  type Notif = { type: 'like' | 'follow'; actorUsername: string; actorAvatarUrl: string | null; placeName?: string }
+  let notifications: Notif[] = []
+  if (isOwnProfile && user) {
+    const myReviewIds = (userReviews ?? []).map((r) => r.id)
+    const likeRows = myReviewIds.length > 0
+      ? (await supabase.from('likes').select('user_id, review_id').in('review_id', myReviewIds).limit(30)).data ?? []
+      : []
+
+    const likerIds = Array.from(new Set(likeRows.map((l) => l.user_id))).filter((id) => id !== user.id)
+    let likerUsers: { id: string; username: string; avatar_url: string | null }[] = []
+    if (likerIds.length > 0) {
+      const { data } = await supabase.from('users').select('id, username, avatar_url').in('id', likerIds)
+      likerUsers = data ?? []
+    }
+    const likerMap = new Map(likerUsers.map((u) => [u.id, u]))
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const reviewPlaceMap = new Map((userReviews ?? []).map((r) => [r.id, (r.places as any)?.name as string ?? 'a review']))
+
+    const likeNotifs: Notif[] = likeRows
+      .filter((l) => l.user_id !== user.id && likerMap.has(l.user_id))
+      .filter((l, i, arr) => arr.findIndex((x) => x.user_id === l.user_id) === i)
+      .map((l) => ({
+        type: 'like' as const,
+        actorUsername: likerMap.get(l.user_id)!.username,
+        actorAvatarUrl: likerMap.get(l.user_id)!.avatar_url,
+        placeName: reviewPlaceMap.get(l.review_id),
+      }))
+
+    const followNotifs: Notif[] = followers.map((f) => ({
+      type: 'follow' as const,
+      actorUsername: f.username,
+      actorAvatarUrl: f.avatar_url,
+    }))
+
+    notifications = [...followNotifs, ...likeNotifs]
+  }
 
   let isFollowing = false
   if (!isOwnProfile && user) {
@@ -98,7 +136,8 @@ export default async function ProfilePage({ params }: { params: { username: stri
       followerCount={followerCount ?? 0}
       followingCount={followingCount ?? 0}
       followers={followers}
-      following={following}
+      followingUsers={following}
+      notifications={notifications}
       isOwnProfile={isOwnProfile}
       isFollowing={isFollowing}
       currentUserId={user?.id ?? null}

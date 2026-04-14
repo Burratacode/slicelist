@@ -36,10 +36,11 @@ type Profile = {
   avatar_url: string | null
 }
 
-const TABS = ['Rankings', 'Reviews', 'Friends', 'Badges'] as const
-type Tab = typeof TABS[number]
+const ALL_TABS = ['Rankings', 'Reviews', 'Friends', 'Notifications', 'Badges'] as const
+type Tab = typeof ALL_TABS[number]
 
 type FriendUser = { id: string; username: string; avatar_url: string | null }
+type Notif = { type: 'like' | 'follow'; actorUsername: string; actorAvatarUrl: string | null; placeName?: string }
 
 function ReviewCard({ review, isOwnProfile, onNavigate, onEdit, onDeleted }: {
   review: Review
@@ -130,7 +131,8 @@ function ReviewCard({ review, isOwnProfile, onNavigate, onEdit, onDeleted }: {
 
 export default function ProfileView({
   profile, reviews, allBadges, earnedBadges,
-  followerCount, followingCount, followers, following,
+  followerCount, followingCount, followers, followingUsers,
+  notifications,
   isOwnProfile, isFollowing, currentUserId,
 }: {
   profile: Profile
@@ -140,13 +142,15 @@ export default function ProfileView({
   followerCount: number
   followingCount: number
   followers: FriendUser[]
-  following: FriendUser[]
+  followingUsers: FriendUser[]
+  notifications: Notif[]
   isOwnProfile: boolean
   isFollowing: boolean
   currentUserId: string | null
 }) {
   const router = useRouter()
-  const [tab, setTab] = useState<Tab>('Reviews')
+  const tabs = isOwnProfile ? ALL_TABS : ALL_TABS.filter((t) => t !== 'Notifications')
+  const [tab, setTab] = useState<Tab>('Rankings')
   const [following, setFollowing] = useState(isFollowing)
   const [loading, setLoading] = useState(false)
 
@@ -224,8 +228,8 @@ export default function ProfileView({
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b border-gray-100">
-        {TABS.map((t) => (
+      <div className="flex border-b border-gray-100 overflow-x-auto">
+        {tabs.map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -283,10 +287,10 @@ export default function ProfileView({
         <div className="px-4 pt-4 space-y-6">
           {/* Following */}
           <div>
-            <p className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-2">Following ({following.length})</p>
-            {following.length === 0
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-2">Following ({followingUsers.length})</p>
+            {followingUsers.length === 0
               ? <p className="text-sm text-gray-400">Not following anyone yet.</p>
-              : following.map((u) => (
+              : followingUsers.map((u) => (
                 <button
                   key={u.id}
                   onClick={() => router.push(`/profile/${u.username}`)}
@@ -325,6 +329,45 @@ export default function ProfileView({
               ))
             }
           </div>
+        </div>
+      )}
+
+      {/* Notifications tab */}
+      {tab === 'Notifications' && (
+        <div className="px-4 pt-3">
+          {notifications.length === 0 ? (
+            <div className="text-center py-12">
+              <p className="text-3xl mb-2">🔔</p>
+              <p className="text-sm text-gray-400">No activity yet. Share your reviews to get likes!</p>
+            </div>
+          ) : (
+            <div className="space-y-0">
+              {notifications.map((n, i) => (
+                <button
+                  key={i}
+                  onClick={() => router.push(`/profile/${n.actorUsername}`)}
+                  className="w-full flex items-center gap-3 py-3 border-b border-gray-50 last:border-0 text-left"
+                >
+                  <div className="w-9 h-9 rounded-full bg-[#E83A00] flex items-center justify-center text-white text-xs font-black shrink-0 overflow-hidden">
+                    {n.actorAvatarUrl
+                      // eslint-disable-next-line @next/next/no-img-element
+                      ? <img src={n.actorAvatarUrl} alt="" className="w-full h-full object-cover" />
+                      : n.actorUsername.slice(0, 2).toUpperCase()}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-gray-900">
+                      <span className="font-bold">@{n.actorUsername}</span>
+                      {n.type === 'like'
+                        ? <span className="text-gray-500"> liked your review of <span className="font-semibold">{n.placeName}</span></span>
+                        : <span className="text-gray-500"> started following you</span>
+                      }
+                    </p>
+                  </div>
+                  <span className="text-lg">{n.type === 'like' ? '❤️' : '👋'}</span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
