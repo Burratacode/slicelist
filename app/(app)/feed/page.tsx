@@ -3,6 +3,19 @@ import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import FeedView from '@/components/FeedView'
 
+export type FeedReview = {
+  id: string
+  created_at: string
+  overall_score: number | null
+  note: string | null
+  photo_urls: string[] | null
+  slice_type: string | null
+  place: { id: string; name: string; neighborhood: string | null; style: string | null }
+  user: { id: string; username: string; avatar_url: string | null }
+  like_count: number
+  liked_by_me: boolean
+}
+
 export default async function FeedPage() {
   const cookieStore = await cookies()
   const supabase = createServerClient(
@@ -23,93 +36,57 @@ export default async function FeedPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/')
 
-  // Get users this person follows
+  // Global feed — all reviews, newest first
+  const { data: reviews } = await supabase
+    .from('reviews')
+    .select('id, created_at, overall_score, note, photo_urls, slice_type, place_id, user_id, places(id, name, neighborhood, style), users(id, username, avatar_url)')
+    .order('created_at', { ascending: false })
+    .limit(50)
+
+  // Like counts for each review
+  const reviewIds = (reviews ?? []).map((r) => r.id)
+  const { data: likesData } = reviewIds.length > 0
+    ? await supabase.from('likes').select('review_id, user_id').in('review_id', reviewIds)
+    : { data: [] }
+
+  const likesByReview = new Map<string, number>()
+  const likedByMe = new Set<string>()
+  for (const l of likesData ?? []) {
+    likesByReview.set(l.review_id, (likesByReview.get(l.review_id) ?? 0) + 1)
+    if (l.user_id === user.id) likedByMe.add(l.review_id)
+  }
+
+  // Following IDs for the toggle
   const { data: followingData } = await supabase
     .from('follows')
     .select('following_id')
     .eq('follower_id', user.id)
+  const followingIds = new Set((followingData ?? []).map((f) => f.following_id))
 
-  const followingIds = followingData?.map((f) => f.following_id) ?? []
-
-  if (followingIds.length === 0) {
-    return <FeedView items={[]} isEmpty={true} />
-  }
-
-  // Fetch recent reviews from followed users (last 50)
-  const { data: reviews } = await supabase
-    .from('reviews')
-    .select('id, overall_score, note, photo_urls, created_at, place_id, user_id, places(id, name, style), users(id, username, avatar_url)')
-    .in('user_id', followingIds)
-    .order('created_at', { ascending: false })
-    .limit(50)
-
-  // Fetch recent badges earned by followed users (last 20)
-  const { data: earnedBadges } = await supabase
-    .from('user_badges')
-    .select('id, earned_at, user_id, badges(name, icon, description), users(id, username, avatar_url)')
-    .in('user_id', followingIds)
-    .order('earned_at', { ascending: false })
-    .limit(20)
-
-  // Build feed items
-  type FeedItem = {
-    type: 'review' | 'badge' | 'hidden_gem'
-    id: string
-    created_at: string
-    user: { id: string; username: string; avatar_url: string | null }
-    review?: {
-      id: string
-      overall_score: number | null
-      note: string | null
-      photo_urls: string[] | null
-      place_id: string
-      place_name: string
-      place_style: string | null
-    }
-    badge?: { name: string; icon: string; description: string }
-    place?: { id: string; name: string; style: string | null }
-  }
-
-  const items: FeedItem[] = []
-
+  const feedReviews: FeedReview[] = []
   for (const r of reviews ?? []) {
-    const u = r.users as unknown as { id: string; username: string; avatar_url: string | null } | null
-    const p = r.places as unknown as { id: string; name: string; style: string | null } | null
-    if (!u || !p) continue
-
-    items.push({
-      type: 'review',
-      id: `review-${r.id}`,
+    const place = r.places as unknown as { id: string; name: string; neighborhood: string | null; style: string | null } | null
+    const usr = r.users as unknown as { id: string; username: string; avatar_url: string | null } | null
+    if (!place || !usr) continue
+    feedReviews.push({
+      id: r.id,
       created_at: r.created_at,
-      user: u,
-      review: {
-        id: r.id,
-        overall_score: r.overall_score,
-        note: r.note,
-        photo_urls: r.photo_urls,
-        place_id: r.place_id,
-        place_name: p.name,
-        place_style: p.style,
-      },
+      overall_score: r.overall_score,
+      note: r.note,
+      photo_urls: r.photo_urls,
+      slice_type: r.slice_type ?? null,
+      place,
+      user: usr,
+      like_count: likesByReview.get(r.id) ?? 0,
+      liked_by_me: likedByMe.has(r.id),
     })
   }
 
-  for (const eb of earnedBadges ?? []) {
-    const u = eb.users as unknown as { id: string; username: string; avatar_url: string | null } | null
-    const b = eb.badges as unknown as { name: string; icon: string; description: string } | null
-    if (!u || !b) continue
-
-    items.push({
-      type: 'badge',
-      id: `badge-${eb.id}`,
-      created_at: eb.earned_at,
-      user: u,
-      badge: b,
-    })
-  }
-
-  // Sort by date descending
-  items.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-
-  return <FeedView items={items.slice(0, 50)} isEmpty={items.length === 0} />
+  return (
+    <FeedView
+      reviews={feedReviews}
+      currentUserId={user.id}
+      followingIds={Array.from(followingIds)}
+    />
+  )
 }
