@@ -61,66 +61,30 @@ function haversineDistance(lat1: number, lng1: number, lat2: number, lng2: numbe
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
 }
 
-// Custom pizza-slice SVG marker
-// The slice is a downward-pointing wedge (tip = map anchor).
-// Color fills from the tip upward proportional to score (0–10).
-// Rated Slicelist places show a score pill above; Google-only places are gray.
-function pizzaSliceMarkerIcon(score: number | null, inSupabase: boolean) {
-  const W = 36
-  const PILL_H = 14   // space reserved for score pill
-  const SLICE_H = 30  // height of the wedge
-  const PAD_B = 2     // tiny gap below tip
-  const H = PILL_H + SLICE_H + PAD_B
-
-  const cx = W / 2         // 18  — horizontal centre
-  const tipY = H - PAD_B   // 44  — bottom tip (map anchor Y)
-  const crustY = PILL_H    // 14  — top of wedge
-  const leftX = 3
-  const rightX = W - 3
-
-  // How much of the slice to fill (0 → none, 1 → full)
-  const fillRatio = score != null && inSupabase
-    ? Math.min(1, Math.max(0, score / 10))
-    : 0
-  const fillH    = fillRatio * SLICE_H
-  const fillY    = tipY - fillH
-  // At fillY the wedge width is proportional to how far from the tip we are
-  const leftFillX  = cx - fillRatio * (cx - leftX)
-  const rightFillX = cx + fillRatio * (rightX - cx)
-
-  const accent  = inSupabase ? '#E83A00' : '#BBBBBB'
-  const bg      = inSupabase ? '#FFF0EC' : '#F2F2F2'
-
+// Emoji marker with optional score pill above
+function pizzaMarkerIcon(score: number | null, inSupabase: boolean) {
+  const emoji = inSupabase ? '🍕' : '📍'
   const hasScore = score != null && inSupabase
   const scoreStr = hasScore ? score.toFixed(1) : ''
 
-  // Wedge outline: flat crust top, tip at bottom
-  const slicePath = `M ${leftX} ${crustY} L ${rightX} ${crustY} L ${cx} ${tipY} Z`
-  // Fill triangle that grows upward from the tip
-  const fillPath  = fillH > 0.5
-    ? `M ${cx} ${tipY} L ${leftFillX.toFixed(1)} ${fillY.toFixed(1)} L ${rightFillX.toFixed(1)} ${fillY.toFixed(1)} Z`
-    : ''
+  // Total canvas: 16px pill (if present) + 32px emoji
+  const W = 40
+  const PILL_H = hasScore ? 16 : 0
+  const H = PILL_H + 32
 
   const svg =
     `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}">` +
-    // Score pill (only for rated Slicelist places)
     (hasScore
-      ? `<rect x="5" y="1" width="26" height="12" rx="6" fill="${accent}"/>`
-      + `<text x="${cx}" y="10.5" text-anchor="middle" `
-      + `font-family="Arial,sans-serif" font-size="8" font-weight="bold" fill="white">${scoreStr}</text>`
+      ? `<rect x="4" y="0" width="32" height="14" rx="7" fill="#E83A00"/>`
+      + `<text x="20" y="10.5" text-anchor="middle" font-family="Arial,sans-serif" font-size="9" font-weight="bold" fill="white">${scoreStr}</text>`
       : '') +
-    // Wedge background
-    `<path d="${slicePath}" fill="${bg}" stroke="${accent}" stroke-width="1.5" stroke-linejoin="round"/>` +
-    // Fill overlay (no clipPath needed — it's just a smaller triangle)
-    (fillPath ? `<path d="${fillPath}" fill="${accent}" opacity="0.88"/>` : '') +
-    // Wedge outline drawn on top so border is always crisp
-    `<path d="${slicePath}" fill="none" stroke="${accent}" stroke-width="1.5" stroke-linejoin="round"/>` +
+    `<text x="4" y="${PILL_H + 26}" font-size="26">${emoji}</text>` +
     `</svg>`
 
   return {
     url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`,
     scaledSize: { width: W, height: H },
-    anchor: { x: cx, y: tipY },
+    anchor: { x: 20, y: H },
   }
 }
 
@@ -350,7 +314,7 @@ export default function DiscoverMap({ supabasePlaces, reviewStats, googleMapsKey
     merged.forEach((place) => {
       const stats = reviewStats[place.id]
       const score = stats && place.inSupabase ? stats.avg : null
-      const icon  = pizzaSliceMarkerIcon(score, place.inSupabase)
+      const icon  = pizzaMarkerIcon(score, place.inSupabase)
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const marker = new g.maps.Marker({
