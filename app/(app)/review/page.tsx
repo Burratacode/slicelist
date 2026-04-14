@@ -119,11 +119,19 @@ export default async function OlympicsPage() {
   }
   rankedReviewers.sort((a, b) => b.review_count - a.review_count || (b.avg_score ?? 0) - (a.avg_score ?? 0))
 
+  // Following IDs for the follow button state
+  const { data: followingData } = await supabase
+    .from('follows')
+    .select('following_id')
+    .eq('follower_id', user.id)
+  const followingIds = (followingData ?? []).map((f) => f.following_id)
+
   return (
     <OlympicsView
       rankedPlaces={rankedPlaces}
       rankedReviewers={rankedReviewers}
       currentUserId={user.id}
+      followingIds={followingIds}
     />
   )
 }
