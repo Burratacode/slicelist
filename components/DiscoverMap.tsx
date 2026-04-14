@@ -63,7 +63,7 @@ function haversineDistance(lat1: number, lng1: number, lat2: number, lng2: numbe
 
 // Emoji marker with optional score pill above
 function pizzaMarkerIcon(score: number | null, inSupabase: boolean) {
-  const emoji = inSupabase ? '🍕' : '📍'
+  const emoji = '🍕'
   const hasScore = score != null && inSupabase
   const scoreStr = hasScore ? score.toFixed(1) : ''
 
