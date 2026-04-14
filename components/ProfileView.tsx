@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 
@@ -38,6 +38,93 @@ type Profile = {
 
 const TABS = ['Reviews', 'Rankings', 'Badges'] as const
 type Tab = typeof TABS[number]
+
+function ReviewCard({ review, isOwnProfile, onNavigate, onEdit, onDeleted }: {
+  review: Review
+  isOwnProfile: boolean
+  onNavigate: () => void
+  onEdit: () => void
+  onDeleted: () => void
+}) {
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  const handleDelete = async () => {
+    setDeleting(true)
+    const supabase = createClient()
+    await supabase.from('reviews').delete().eq('id', review.id)
+    setDeleting(false)
+    onDeleted()
+  }
+
+  return (
+    <div className="flex gap-3 pb-4 border-b border-gray-100 last:border-0">
+      <button onClick={onNavigate} className="shrink-0">
+        {review.photo_urls?.[0]
+          // eslint-disable-next-line @next/next/no-img-element
+          ? <img src={review.photo_urls[0]} alt="" className="w-14 h-14 rounded-xl object-cover" />
+          : <div className="w-14 h-14 rounded-xl bg-orange-50 flex items-center justify-center text-2xl">🍕</div>
+        }
+      </button>
+      <button onClick={onNavigate} className="flex-1 min-w-0 text-left">
+        <div className="flex items-center gap-2">
+          <p className="font-semibold text-sm text-gray-900 truncate">{review.places?.name}</p>
+          <span className="shrink-0 text-xs font-bold text-white bg-[#E83A00] rounded-full px-2 py-0.5">
+            {review.overall_score?.toFixed(1)}
+          </span>
+        </div>
+        {review.note && <p className="text-xs text-gray-500 mt-0.5 line-clamp-1">{review.note}</p>}
+        <p className="text-xs text-gray-400 mt-0.5">{review.places?.style}</p>
+      </button>
+      {isOwnProfile && (
+        <div className="relative shrink-0" ref={menuRef}>
+          <button
+            onClick={() => setMenuOpen(!menuOpen)}
+            className="w-7 h-7 flex items-center justify-center text-gray-400 rounded-full hover:bg-gray-100"
+          >···</button>
+          {menuOpen && !confirmDelete && (
+            <div className="absolute right-0 top-8 bg-white border border-gray-200 rounded-xl shadow-lg z-20 w-36 overflow-hidden">
+              <button
+                onClick={() => { setMenuOpen(false); onEdit() }}
+                className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-gray-50"
+              >Edit review</button>
+              <button
+                onClick={() => setConfirmDelete(true)}
+                className="w-full text-left px-4 py-3 text-sm text-red-500 hover:bg-red-50"
+              >Delete</button>
+            </div>
+          )}
+          {confirmDelete && (
+            <div className="absolute right-0 top-8 bg-white border border-red-200 rounded-xl shadow-lg z-20 w-48 p-3">
+              <p className="text-xs text-gray-600 mb-2">Delete this review?</p>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setConfirmDelete(false)}
+                  className="flex-1 text-xs py-1.5 rounded-lg border border-gray-200 text-gray-600"
+                >Cancel</button>
+                <button
+                  onClick={handleDelete}
+                  disabled={deleting}
+                  className="flex-1 text-xs py-1.5 rounded-lg bg-red-500 text-white font-semibold disabled:opacity-50"
+                >{deleting ? '...' : 'Delete'}</button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
 
 export default function ProfileView({
   profile, reviews, allBadges, earnedBadges,
@@ -151,26 +238,14 @@ export default function ProfileView({
             <p className="text-gray-400 text-sm text-center py-8">No reviews yet.</p>
           )}
           {reviews.map((r) => (
-            <button
+            <ReviewCard
               key={r.id}
-              onClick={() => router.push(`/place/${r.place_id}`)}
-              className="w-full text-left flex gap-3 pb-4 border-b border-gray-100 last:border-0"
-            >
-              {r.photo_urls?.[0] && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={r.photo_urls[0]} alt="" className="w-14 h-14 rounded-xl object-cover shrink-0" />
-              )}
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <p className="font-semibold text-sm text-gray-900 truncate">{r.places?.name}</p>
-                  <span className="shrink-0 text-xs font-bold text-white bg-[#E83A00] rounded-full px-2 py-0.5">
-                    {r.overall_score?.toFixed(1)}
-                  </span>
-                </div>
-                {r.note && <p className="text-xs text-gray-500 mt-0.5 line-clamp-1">{r.note}</p>}
-                <p className="text-xs text-gray-400 mt-0.5">{r.places?.style}</p>
-              </div>
-            </button>
+              review={r}
+              isOwnProfile={isOwnProfile}
+              onNavigate={() => router.push(`/place/${r.place_id}`)}
+              onEdit={() => router.push(`/review/edit/${r.id}`)}
+              onDeleted={() => router.refresh()}
+            />
           ))}
         </div>
       )}

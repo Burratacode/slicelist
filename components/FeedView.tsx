@@ -183,10 +183,18 @@ function FeedCard({
         </button>
         <button
           onClick={() => router.push(`/place/${review.place.id}`)}
-          className="text-xs text-gray-400 ml-auto"
+          className="text-xs text-gray-400"
         >
           View place →
         </button>
+        {review.user.id === currentUserId && (
+          <div className="ml-auto flex gap-3">
+            <button
+              onClick={() => router.push(`/review/edit/${review.id}`)}
+              className="text-xs text-gray-400"
+            >Edit</button>
+          </div>
+        )}
       </div>
     </article>
   )

@@ -76,17 +76,45 @@ async function checkAndAwardBadges(supabase: any, userId: string) {
   }
 }
 
-export default function ReviewForm({ place, userId }: { place: Place; userId: string }) {
+type ExistingReview = {
+  id: string
+  score_crust: number
+  score_sauce: number
+  score_cheese: number
+  score_toppings: number
+  score_value: number
+  note: string | null
+  slice_type: string | null
+  photo_urls: string[] | null
+}
+
+export default function ReviewForm({ place, userId, existingReview }: {
+  place: Place
+  userId: string
+  existingReview?: ExistingReview
+}) {
+  const isEdit = !!existingReview
   const router = useRouter()
-  const [scores, setScores] = useState<Record<ScoreKey, number>>(DEFAULT_SCORES)
-  const [note, setNote] = useState('')
+  const [scores, setScores] = useState<Record<ScoreKey, number>>(
+    existingReview
+      ? { crust: existingReview.score_crust, sauce: existingReview.score_sauce, cheese: existingReview.score_cheese, toppings: existingReview.score_toppings, value: existingReview.score_value }
+      : DEFAULT_SCORES
+  )
+  const [note, setNote] = useState(existingReview?.note ?? '')
   const [photos, setPhotos] = useState<File[]>([])
   const [previews, setPreviews] = useState<string[]>([])
+  const [existingPhotoUrls, setExistingPhotoUrls] = useState<string[]>(existingReview?.photo_urls ?? [])
   const [submitting, setSubmitting] = useState(false)
   const [success, setSuccess] = useState(false)
   const [isFirst, setIsFirst] = useState(false)
-  const [sliceType, setSliceType] = useState('')
-  const [sliceTypeOther, setSliceTypeOther] = useState('')
+  const [sliceType, setSliceType] = useState(() => {
+    const st = existingReview?.slice_type ?? ''
+    return SLICE_TYPES.includes(st) ? st : st ? 'Other' : ''
+  })
+  const [sliceTypeOther, setSliceTypeOther] = useState(() => {
+    const st = existingReview?.slice_type ?? ''
+    return SLICE_TYPES.includes(st) || !st ? '' : st
+  })
   const fileRef = useRef<HTMLInputElement>(null)
 
   const overall = SLIDERS.reduce((sum, s) => sum + scores[s.key] * s.weight, 0)
@@ -131,29 +159,21 @@ export default function ReviewForm({ place, userId }: { place: Place; userId: st
     setSubmitting(true)
     const supabase = createClient()
 
-    // Upload photos
-    const photoUrls: string[] = []
+    // Upload any new photos
+    const newPhotoUrls: string[] = []
     for (let i = 0; i < photos.length; i++) {
       const blob = await resizeImage(photos[i])
       const path = `reviews/${userId}/${Date.now()}-${i}.jpg`
       const { error } = await supabase.storage.from('review-photos').upload(path, blob, { contentType: 'image/jpeg' })
       if (!error) {
         const { data } = supabase.storage.from('review-photos').getPublicUrl(path)
-        photoUrls.push(data.publicUrl)
+        newPhotoUrls.push(data.publicUrl)
       }
     }
 
-    // Check if first review for this place
-    const { count } = await supabase
-      .from('reviews')
-      .select('*', { count: 'exact', head: true })
-      .eq('place_id', place.id)
-
+    const allPhotoUrls = [...existingPhotoUrls, ...newPhotoUrls]
     const finalSliceType = sliceType === 'Other' ? sliceTypeOther.trim() : sliceType
-
-    const { error } = await supabase.from('reviews').insert({
-      user_id: userId,
-      place_id: place.id,
+    const payload = {
       score_crust: scores.crust,
       score_sauce: scores.sauce,
       score_cheese: scores.cheese,
@@ -161,17 +181,26 @@ export default function ReviewForm({ place, userId }: { place: Place; userId: st
       score_value: scores.value,
       overall_score: parseFloat(overall.toFixed(2)),
       note: note.trim() || null,
-      photo_urls: photoUrls.length > 0 ? photoUrls : null,
+      photo_urls: allPhotoUrls.length > 0 ? allPhotoUrls : null,
       slice_type: finalSliceType || null,
-    })
+    }
+
+    let error
+    if (isEdit && existingReview) {
+      const res = await supabase.from('reviews').update(payload).eq('id', existingReview.id)
+      error = res.error
+    } else {
+      const { count } = await supabase.from('reviews').select('*', { count: 'exact', head: true }).eq('place_id', place.id)
+      const res = await supabase.from('reviews').insert({ user_id: userId, place_id: place.id, ...payload })
+      error = res.error
+      if (!error) setIsFirst(count === 0)
+    }
 
     setSubmitting(false)
     if (!error) {
-      setIsFirst(count === 0)
       setSuccess(true)
-      // Check and award badges in background
-      checkAndAwardBadges(supabase, userId).catch(() => {})
-      setTimeout(() => router.push(`/place/${place.id}`), 2500)
+      if (!isEdit) checkAndAwardBadges(supabase, userId).catch(() => {})
+      setTimeout(() => router.push(`/place/${place.id}`), 2000)
     }
   }
 
@@ -179,7 +208,12 @@ export default function ReviewForm({ place, userId }: { place: Place; userId: st
     return (
       <div className="flex flex-col items-center justify-center min-h-screen px-6 text-center">
         <p className="text-6xl mb-4">🍕</p>
-        {isFirst ? (
+        {isEdit ? (
+          <>
+            <h1 className="text-xl font-black text-gray-900 mb-2">Review updated!</h1>
+            <p className="text-sm text-gray-400">Your changes have been saved.</p>
+          </>
+        ) : isFirst ? (
           <>
             <h1 className="text-xl font-black text-[#E83A00] mb-2">You just put {place.name} on the Slicelist map!</h1>
             <p className="text-sm text-gray-400">You&apos;re the first to rate this spot.</p>
@@ -199,7 +233,7 @@ export default function ReviewForm({ place, userId }: { place: Place; userId: st
       {/* Header */}
       <div className="px-4 pt-4 pb-3 border-b border-gray-100">
         <button onClick={() => router.back()} className="text-[#E83A00] text-sm font-medium mb-3">← Back</button>
-        <h1 className="text-xl font-black text-gray-900">Rate {place.name}</h1>
+        <h1 className="text-xl font-black text-gray-900">{isEdit ? 'Edit Review' : 'Rate'} {place.name}</h1>
         <p className="text-sm text-gray-400 mt-0.5">
           {[place.neighborhood, place.style].filter(Boolean).join(' · ')}
         </p>
@@ -278,10 +312,22 @@ export default function ReviewForm({ place, userId }: { place: Place; userId: st
 
       {/* Photo upload */}
       <div className="px-4 mt-4">
-        <p className="text-sm font-semibold text-gray-700 mb-2">Add photos (up to 3)</p>
+        <p className="text-sm font-semibold text-gray-700 mb-2">Photos (up to 3)</p>
         <div className="flex gap-2 flex-wrap">
+          {/* Existing photos (edit mode) */}
+          {existingPhotoUrls.map((url, i) => (
+            <div key={`existing-${i}`} className="relative w-20 h-20 rounded-xl overflow-hidden">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={url} alt="" className="w-full h-full object-cover" />
+              <button
+                onClick={() => setExistingPhotoUrls((prev) => prev.filter((_, idx) => idx !== i))}
+                className="absolute top-0.5 right-0.5 w-5 h-5 bg-black/60 rounded-full text-white text-xs flex items-center justify-center"
+              >×</button>
+            </div>
+          ))}
+          {/* New photos */}
           {previews.map((url, i) => (
-            <div key={i} className="relative w-20 h-20 rounded-xl overflow-hidden">
+            <div key={`new-${i}`} className="relative w-20 h-20 rounded-xl overflow-hidden">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={url} alt="" className="w-full h-full object-cover" />
               <button
@@ -290,7 +336,7 @@ export default function ReviewForm({ place, userId }: { place: Place; userId: st
               >×</button>
             </div>
           ))}
-          {photos.length < MAX_PHOTOS && (
+          {(existingPhotoUrls.length + photos.length) < MAX_PHOTOS && (
             <button
               onClick={() => fileRef.current?.click()}
               className="w-20 h-20 rounded-xl border-2 border-dashed border-gray-200 flex items-center justify-center text-gray-400 text-2xl"
