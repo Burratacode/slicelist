@@ -6,6 +6,7 @@ import OlympicsView from '@/components/OlympicsView'
 export type RankedPlace = {
   id: string
   name: string
+  address: string | null
   neighborhood: string | null
   borough: string | null
   style: string | null
@@ -61,7 +62,7 @@ export default async function OlympicsPage() {
   // All places
   const { data: allPlaces } = await supabase
     .from('places')
-    .select('id, name, neighborhood, borough, style')
+    .select('id, name, address, neighborhood, borough, style')
 
   // --- Build Best Pizza rankings ---
   const placeScores = new Map<string, number[]>()
@@ -79,6 +80,7 @@ export default async function OlympicsPage() {
     rankedPlaces.push({
       id: place.id,
       name: place.name,
+      address: place.address,
       neighborhood: place.neighborhood,
       borough: place.borough,
       style: place.style,

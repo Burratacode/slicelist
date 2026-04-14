@@ -46,9 +46,9 @@ function PlaceRow({ place, rank }: { place: RankedPlace; rank: number }) {
       {/* Info */}
       <div className="flex-1 min-w-0">
         <p className="font-bold text-sm text-gray-900 truncate">{place.name}</p>
-        <p className="text-xs text-gray-400 truncate mt-0.5">
-          {[place.neighborhood, place.borough].filter(Boolean).join(', ')}
-        </p>
+        {place.address && (
+          <p className="text-xs text-gray-400 truncate mt-0.5">{place.address}</p>
+        )}
         {place.style && (
           <p className="text-xs text-gray-300 truncate">{place.style}</p>
         )}
