@@ -96,6 +96,18 @@ export default function PlaceDetail({ place, reviews }: {
 
   const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(place.name + ' ' + (place.address ?? ''))}`
 
+  // Auto-tags
+  const tags: string[] = []
+  if (avgScore != null) {
+    if (avgScore >= 9.0 && reviews.length >= 5) tags.push('🏆 Legendary')
+    else if (avgScore >= 8.5 && reviews.length < 5) tags.push('💎 Hidden Gem')
+    else if (avgScore >= 8.0) tags.push('⭐ Highly Rated')
+    if (reviews.length >= 15) tags.push('🔥 Crowd Favorite')
+    else if (reviews.length >= 8) tags.push('📣 Well Reviewed')
+    if (avgScore <= 5.0 && reviews.length >= 3) tags.push('😬 Proceed with Caution')
+  }
+  if (place.barstool_score != null && avgScore != null && avgScore > place.barstool_score + 1) tags.push('📈 Underrated by Barstool')
+
   return (
     <div className="pb-4">
       {/* Back button */}
@@ -139,6 +151,17 @@ export default function PlaceDetail({ place, reviews }: {
           )}
         </div>
       </div>
+
+      {/* Auto-tags */}
+      {tags.length > 0 && (
+        <div className="px-4 mt-2 flex flex-wrap gap-1.5">
+          {tags.map((tag) => (
+            <span key={tag} className="px-2.5 py-1 bg-orange-50 text-[#E83A00] text-xs font-semibold rounded-full border border-orange-100">
+              {tag}
+            </span>
+          ))}
+        </div>
+      )}
 
       {/* Score banner */}
       <div className="mx-4 mt-3 rounded-2xl bg-[#E83A00] px-4 py-3 flex items-center justify-between">

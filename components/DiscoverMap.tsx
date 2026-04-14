@@ -200,9 +200,18 @@ export default function DiscoverMap({ supabasePlaces, reviewStats, googleMapsKey
   const markersRef = useRef<any[]>([])
 
   useEffect(() => {
+    const NYC = { lat: 40.7580, lng: -73.9855 }
+    // NYC rough bounding box
+    const inNYC = (lat: number, lng: number) =>
+      lat >= 40.45 && lat <= 40.95 && lng >= -74.30 && lng <= -73.65
+
     navigator.geolocation.getCurrentPosition(
-      (pos) => setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-      () => setUserLocation({ lat: 40.7580, lng: -73.9855 })
+      (pos) => {
+        const { latitude: lat, longitude: lng } = pos.coords
+        // If user is outside NYC (e.g. India), show NYC anyway
+        setUserLocation(inNYC(lat, lng) ? { lat, lng } : NYC)
+      },
+      () => setUserLocation(NYC)
     )
   }, [])
 

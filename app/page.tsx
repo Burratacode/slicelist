@@ -37,9 +37,12 @@ export default async function Home() {
 
       {/* Content */}
       <div className="flex flex-col items-center px-6 pt-4 pb-10 w-full max-w-sm mx-auto gap-4">
-        <h1 className="text-6xl font-black tracking-tight text-[#E83A00]">
-          SLICELIST
-        </h1>
+        <div className="flex flex-col items-center gap-0">
+          <span className="text-5xl leading-none">🍕</span>
+          <h1 className="text-6xl font-black tracking-tight text-[#E83A00] leading-tight">
+            SLICELIST
+          </h1>
+        </div>
         <p className="text-gray-500 text-base text-center">
           NYC pizza, ranked by real people
         </p>

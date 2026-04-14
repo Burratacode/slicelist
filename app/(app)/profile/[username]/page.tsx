@@ -54,11 +54,27 @@ export default async function ProfilePage({ params }: { params: { username: stri
     supabase.from('follows').select('*', { count: 'exact', head: true }).eq('follower_id', profile.id),
   ])
 
-  const [{ data: allBadges }] = await Promise.all([
+  const isOwnProfile = user?.id === profile.id
+
+  const [{ data: allBadges }, { data: followerRows }, { data: followingRows }] = await Promise.all([
     supabase.from('badges').select('*'),
+    supabase.from('follows').select('follower_id').eq('following_id', profile.id),
+    supabase.from('follows').select('following_id').eq('follower_id', profile.id),
   ])
 
-  const isOwnProfile = user?.id === profile.id
+  // Resolve user details for followers + following
+  const followerIds  = (followerRows  ?? []).map((r) => r.follower_id)
+  const followingIds = (followingRows ?? []).map((r) => r.following_id)
+  const allFriendIds = [...new Set([...followerIds, ...followingIds])]
+  let friendUsers: { id: string; username: string; avatar_url: string | null }[] = []
+  if (allFriendIds.length > 0) {
+    const { data } = await supabase
+      .from('users').select('id, username, avatar_url').in('id', allFriendIds)
+    friendUsers = data ?? []
+  }
+  const friendMap = new Map(friendUsers.map((u) => [u.id, u]))
+  const followers  = followerIds.map((id) => friendMap.get(id)).filter(Boolean) as typeof friendUsers
+  const following  = followingIds.map((id) => friendMap.get(id)).filter(Boolean) as typeof friendUsers
 
   let isFollowing = false
   if (!isOwnProfile && user) {
@@ -81,6 +97,8 @@ export default async function ProfilePage({ params }: { params: { username: stri
       earnedBadges={(userBadges ?? []) as any}
       followerCount={followerCount ?? 0}
       followingCount={followingCount ?? 0}
+      followers={followers}
+      following={following}
       isOwnProfile={isOwnProfile}
       isFollowing={isFollowing}
       currentUserId={user?.id ?? null}

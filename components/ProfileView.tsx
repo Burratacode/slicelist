@@ -36,8 +36,10 @@ type Profile = {
   avatar_url: string | null
 }
 
-const TABS = ['Reviews', 'Rankings', 'Badges'] as const
+const TABS = ['Rankings', 'Reviews', 'Friends', 'Badges'] as const
 type Tab = typeof TABS[number]
+
+type FriendUser = { id: string; username: string; avatar_url: string | null }
 
 function ReviewCard({ review, isOwnProfile, onNavigate, onEdit, onDeleted }: {
   review: Review
@@ -128,7 +130,8 @@ function ReviewCard({ review, isOwnProfile, onNavigate, onEdit, onDeleted }: {
 
 export default function ProfileView({
   profile, reviews, allBadges, earnedBadges,
-  followerCount, followingCount, isOwnProfile, isFollowing, currentUserId,
+  followerCount, followingCount, followers, following,
+  isOwnProfile, isFollowing, currentUserId,
 }: {
   profile: Profile
   reviews: Review[]
@@ -136,6 +139,8 @@ export default function ProfileView({
   earnedBadges: EarnedBadge[]
   followerCount: number
   followingCount: number
+  followers: FriendUser[]
+  following: FriendUser[]
   isOwnProfile: boolean
   isFollowing: boolean
   currentUserId: string | null
@@ -231,25 +236,6 @@ export default function ProfileView({
         ))}
       </div>
 
-      {/* Reviews tab */}
-      {tab === 'Reviews' && (
-        <div className="px-4 pt-3 space-y-4">
-          {reviews.length === 0 && (
-            <p className="text-gray-400 text-sm text-center py-8">No reviews yet.</p>
-          )}
-          {reviews.map((r) => (
-            <ReviewCard
-              key={r.id}
-              review={r}
-              isOwnProfile={isOwnProfile}
-              onNavigate={() => router.push(`/place/${r.place_id}`)}
-              onEdit={() => router.push(`/review/edit/${r.id}`)}
-              onDeleted={() => router.refresh()}
-            />
-          ))}
-        </div>
-      )}
-
       {/* Rankings tab */}
       {tab === 'Rankings' && (
         <div className="px-4 pt-3">
@@ -273,18 +259,113 @@ export default function ProfileView({
         </div>
       )}
 
+      {/* Reviews tab */}
+      {tab === 'Reviews' && (
+        <div className="px-4 pt-3 space-y-4">
+          {reviews.length === 0 && (
+            <p className="text-gray-400 text-sm text-center py-8">No reviews yet.</p>
+          )}
+          {reviews.map((r) => (
+            <ReviewCard
+              key={r.id}
+              review={r}
+              isOwnProfile={isOwnProfile}
+              onNavigate={() => router.push(`/place/${r.place_id}`)}
+              onEdit={() => router.push(`/review/edit/${r.id}`)}
+              onDeleted={() => router.refresh()}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Friends tab */}
+      {tab === 'Friends' && (
+        <div className="px-4 pt-4 space-y-6">
+          {/* Following */}
+          <div>
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-2">Following ({following.length})</p>
+            {following.length === 0
+              ? <p className="text-sm text-gray-400">Not following anyone yet.</p>
+              : following.map((u) => (
+                <button
+                  key={u.id}
+                  onClick={() => router.push(`/profile/${u.username}`)}
+                  className="w-full flex items-center gap-3 py-2.5 border-b border-gray-50 last:border-0 text-left"
+                >
+                  <div className="w-9 h-9 rounded-full bg-[#E83A00] flex items-center justify-center text-white text-xs font-black shrink-0 overflow-hidden">
+                    {u.avatar_url
+                      // eslint-disable-next-line @next/next/no-img-element
+                      ? <img src={u.avatar_url} alt="" className="w-full h-full object-cover" />
+                      : u.username.slice(0, 2).toUpperCase()}
+                  </div>
+                  <span className="font-semibold text-sm text-gray-900">@{u.username}</span>
+                </button>
+              ))
+            }
+          </div>
+          {/* Followers */}
+          <div>
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-2">Followers ({followers.length})</p>
+            {followers.length === 0
+              ? <p className="text-sm text-gray-400">No followers yet.</p>
+              : followers.map((u) => (
+                <button
+                  key={u.id}
+                  onClick={() => router.push(`/profile/${u.username}`)}
+                  className="w-full flex items-center gap-3 py-2.5 border-b border-gray-50 last:border-0 text-left"
+                >
+                  <div className="w-9 h-9 rounded-full bg-[#E83A00] flex items-center justify-center text-white text-xs font-black shrink-0 overflow-hidden">
+                    {u.avatar_url
+                      // eslint-disable-next-line @next/next/no-img-element
+                      ? <img src={u.avatar_url} alt="" className="w-full h-full object-cover" />
+                      : u.username.slice(0, 2).toUpperCase()}
+                  </div>
+                  <span className="font-semibold text-sm text-gray-900">@{u.username}</span>
+                </button>
+              ))
+            }
+          </div>
+        </div>
+      )}
+
       {/* Badges tab */}
       {tab === 'Badges' && (
-        <div className="px-4 pt-3 grid grid-cols-4 gap-3">
-          {allBadges.map((badge) => {
-            const earned = earnedIds.has(badge.id ?? badge.slug)
+        <div className="px-4 pt-4">
+          {/* Progression bar */}
+          {(() => {
+            const earned = allBadges.filter((b) => earnedIds.has(b.id ?? b.slug)).length
+            const total  = allBadges.length
+            const pct    = total > 0 ? Math.round((earned / total) * 100) : 0
+            // Pizza level: slice → 2 slices → half pie → 3/4 pie → full pie
+            const level  = pct >= 80 ? '🍕' : pct >= 60 ? '🍕' : pct >= 40 ? '🍕' : pct >= 20 ? '🍕' : '🍕'
+            const label  = pct >= 80 ? 'Pizza Legend' : pct >= 60 ? 'Slice Master' : pct >= 40 ? 'Regular' : pct >= 20 ? 'Newcomer' : 'First Bite'
             return (
-              <div key={badge.slug} className={`flex flex-col items-center text-center gap-1 ${earned ? '' : 'opacity-30'}`}>
-                <span className="text-3xl">{badge.icon}</span>
-                <span className="text-[10px] font-medium text-gray-700 leading-tight">{badge.name}</span>
+              <div className="bg-orange-50 rounded-2xl p-4 mb-4">
+                <div className="flex items-center justify-between mb-2">
+                  <div>
+                    <p className="text-xs font-bold text-gray-400 uppercase tracking-wide">Pizza Level</p>
+                    <p className="font-black text-[#E83A00] text-base leading-tight">{level} {label}</p>
+                  </div>
+                  <p className="text-2xl font-black text-[#E83A00]">{earned}<span className="text-sm font-semibold text-gray-400">/{total}</span></p>
+                </div>
+                <div className="h-2.5 bg-white rounded-full overflow-hidden">
+                  <div className="h-full bg-[#E83A00] rounded-full transition-all" style={{ width: `${pct}%` }} />
+                </div>
               </div>
             )
-          })}
+          })()}
+          {/* Badge grid */}
+          <div className="grid grid-cols-4 gap-3">
+            {allBadges.map((badge) => {
+              const earned = earnedIds.has(badge.id ?? badge.slug)
+              return (
+                <div key={badge.slug} className={`flex flex-col items-center text-center gap-1 ${earned ? '' : 'opacity-30'}`}>
+                  <span className="text-3xl">{badge.icon}</span>
+                  <span className="text-[10px] font-medium text-gray-700 leading-tight">{badge.name}</span>
+                </div>
+              )
+            })}
+          </div>
         </div>
       )}
 

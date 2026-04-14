@@ -29,17 +29,16 @@ const SLICE_TYPES = ['Plain', 'Pepperoni', 'Margherita', 'White', 'Sicilian', 'G
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function checkAndAwardBadges(supabase: any, userId: string) {
-  const [{ data: reviews }, { data: earned }, { data: allBadges }] = await Promise.all([
+  const [{ data: reviews }, { data: earnedRows }, { data: allBadges }] = await Promise.all([
     supabase.from('reviews').select('id, overall_score, place_id, places(style)').eq('user_id', userId),
-    supabase.from('user_badges').select('badge_id, badges(slug)').eq('user_id', userId),
+    supabase.from('user_badges').select('badge_id').eq('user_id', userId),
     supabase.from('badges').select('id, slug'),
   ])
 
   if (!reviews || !allBadges) return
 
-  const earnedSlugs = new Set<string>(
-    (earned ?? []).map((e: { badges: { slug: string } | null }) => e.badges?.slug).filter(Boolean)
-  )
+  // Use badge_id set (no join needed — avoids FK alias issues)
+  const earnedIds = new Set<string>((earnedRows ?? []).map((e: { badge_id: string }) => e.badge_id))
   const badgeMap = new Map<string, string>(allBadges.map((b: { id: string; slug: string }) => [b.slug, b.id]))
 
   const reviewCount = reviews.length
@@ -70,8 +69,9 @@ async function checkAndAwardBadges(supabase: any, userId: string) {
   ]
 
   for (const [slug, condition] of rules) {
-    if (condition && !earnedSlugs.has(slug) && badgeMap.has(slug)) {
-      await supabase.from('user_badges').insert({ user_id: userId, badge_id: badgeMap.get(slug) })
+    const badgeId = badgeMap.get(slug)
+    if (condition && badgeId && !earnedIds.has(badgeId)) {
+      await supabase.from('user_badges').insert({ user_id: userId, badge_id: badgeId })
     }
   }
 }
