@@ -28,6 +28,7 @@ export default async function PassportPage() {
     { data: reviews },
     { data: allBadges },
     { data: earnedBadges },
+    { data: wishlistRows },
   ] = await Promise.all([
     supabase.from('users').select('id, username, bio, borough, avatar_url').eq('id', user.id).single(),
     supabase.from('reviews').select('id, overall_score, place_id').eq('user_id', user.id),
@@ -35,6 +36,10 @@ export default async function PassportPage() {
     supabase.from('user_badges')
       .select('badge_id, earned_at, badges(slug, name, icon, description)')
       .eq('user_id', user.id),
+    supabase.from('wishlists')
+      .select('place_id, places(id, name, neighborhood, borough, style)')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false }),
   ])
 
   if (!profile) redirect('/onboarding')
@@ -53,12 +58,16 @@ export default async function PassportPage() {
     borough: profile.borough,
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const wishlist = (wishlistRows ?? []).map((w) => (w.places as any)).filter(Boolean)
+
   return (
     <PassportView
       stats={stats}
       allBadges={allBadges ?? []}
       earnedBadges={(earnedBadges ?? []) as unknown as EarnedBadge[]}
       username={profile.username}
+      wishlist={wishlist}
     />
   )
 }

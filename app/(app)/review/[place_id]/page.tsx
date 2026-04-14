@@ -1,6 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import ReviewForm from '@/components/ReviewForm'
 
 export default async function ReviewPage({ params }: { params: { place_id: string } }) {
@@ -20,6 +20,9 @@ export default async function ReviewPage({ params }: { params: { place_id: strin
     }
   )
 
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/')
+
   const { data: place } = await supabase
     .from('places')
     .select('id, name, neighborhood, style')
@@ -28,7 +31,15 @@ export default async function ReviewPage({ params }: { params: { place_id: strin
 
   if (!place) notFound()
 
-  const { data: { user } } = await supabase.auth.getUser()
+  // If user already reviewed this place, send them to edit instead
+  const { data: existing } = await supabase
+    .from('reviews')
+    .select('id')
+    .eq('user_id', user.id)
+    .eq('place_id', params.place_id)
+    .single()
 
-  return <ReviewForm place={place} userId={user!.id} />
+  if (existing) redirect(`/review/edit/${existing.id}`)
+
+  return <ReviewForm place={place} userId={user.id} />
 }

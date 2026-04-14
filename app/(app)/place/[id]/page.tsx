@@ -100,7 +100,7 @@ export default async function PlacePage({ params }: { params: { id: string } }) 
       .select('id, overall_score, score_crust, score_sauce, score_cheese, score_toppings, score_value, note, photo_urls, created_at, user_id, users(username, avatar_url)')
       .eq('place_id', id)
       .order('created_at', { ascending: false })
-      .limit(5),
+      .limit(10),
   ])
 
   if (!place) notFound()

@@ -2,6 +2,14 @@
 
 import { useRouter } from 'next/navigation'
 
+type WishlistPlace = {
+  id: string
+  name: string
+  neighborhood: string | null
+  borough: string | null
+  style: string | null
+}
+
 export type Badge = {
   id: string
   slug: string
@@ -52,11 +60,13 @@ export default function PassportView({
   allBadges,
   earnedBadges,
   username,
+  wishlist,
 }: {
   stats: Stats
   allBadges: Badge[]
   earnedBadges: EarnedBadge[]
   username: string
+  wishlist: WishlistPlace[]
 }) {
   const router = useRouter()
   const level = getLevel(stats.reviewCount)
@@ -168,6 +178,39 @@ export default function PassportView({
             )
           })}
         </div>
+      </div>
+
+      {/* Wishlist */}
+      <div className="px-4 mt-6">
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-sm font-bold text-gray-700">🔖 Want to Try ({wishlist.length})</p>
+        </div>
+        {wishlist.length === 0 ? (
+          <p className="text-sm text-gray-400">
+            Tap &ldquo;Want to try&rdquo; on any place page to save it here.
+          </p>
+        ) : (
+          <div className="space-y-0">
+            {wishlist.map((place) => (
+              <button
+                key={place.id}
+                onClick={() => router.push(`/place/${place.id}`)}
+                className="w-full flex items-center gap-3 py-3 border-b border-gray-100 last:border-0 text-left"
+              >
+                <span className="text-xl shrink-0">🍕</span>
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-sm text-gray-900 truncate">{place.name}</p>
+                  <p className="text-xs text-gray-400 truncate">
+                    {[place.neighborhood, place.borough, place.style].filter(Boolean).join(' · ')}
+                  </p>
+                </div>
+                <svg className="w-4 h-4 text-gray-300 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* CTA if no reviews */}

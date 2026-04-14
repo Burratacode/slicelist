@@ -66,6 +66,24 @@ export default function PlaceDetail({ place, reviews, currentUserId, initialWish
   const router = useRouter()
   const [showBreakdown, setShowBreakdown] = useState(false)
   const [googlePhotos, setGooglePhotos] = useState<GooglePhoto[]>([])
+  const [allReviews, setAllReviews] = useState<Review[]>(reviews)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [hasMore, setHasMore] = useState(reviews.length === 10)
+
+  const loadMore = useCallback(async () => {
+    setLoadingMore(true)
+    const supabase = createClient()
+    const { data } = await supabase
+      .from('reviews')
+      .select('id, overall_score, score_crust, score_sauce, score_cheese, score_toppings, score_value, note, photo_urls, created_at, user_id, users(username, avatar_url)')
+      .eq('place_id', place.id)
+      .order('created_at', { ascending: false })
+      .range(allReviews.length, allReviews.length + 9)
+    const newReviews = (data ?? []) as unknown as Review[]
+    setAllReviews((prev) => [...prev, ...newReviews])
+    setHasMore(newReviews.length === 10)
+    setLoadingMore(false)
+  }, [allReviews.length, place.id])
   const [wishlisted, setWishlisted] = useState(initialWishlisted)
   const [wishlistLoading, setWishlistLoading] = useState(false)
 
@@ -82,15 +100,15 @@ export default function PlaceDetail({ place, reviews, currentUserId, initialWish
     setWishlistLoading(false)
   }, [wishlisted, currentUserId, place.id, router])
 
-  const avgScore = reviews.length > 0
-    ? reviews.reduce((s, r) => s + (r.overall_score ?? 0), 0) / reviews.length
+  const avgScore = allReviews.length > 0
+    ? allReviews.reduce((s, r) => s + (r.overall_score ?? 0), 0) / allReviews.length
     : null
 
-  const avgCrust    = reviews.reduce((s, r) => s + (r.score_crust ?? 0), 0) / (reviews.length || 1)
-  const avgSauce    = reviews.reduce((s, r) => s + (r.score_sauce ?? 0), 0) / (reviews.length || 1)
-  const avgCheese   = reviews.reduce((s, r) => s + (r.score_cheese ?? 0), 0) / (reviews.length || 1)
-  const avgToppings = reviews.reduce((s, r) => s + (r.score_toppings ?? 0), 0) / (reviews.length || 1)
-  const avgValue    = reviews.reduce((s, r) => s + (r.score_value ?? 0), 0) / (reviews.length || 1)
+  const avgCrust    = allReviews.reduce((s, r) => s + (r.score_crust ?? 0), 0) / (allReviews.length || 1)
+  const avgSauce    = allReviews.reduce((s, r) => s + (r.score_sauce ?? 0), 0) / (allReviews.length || 1)
+  const avgCheese   = allReviews.reduce((s, r) => s + (r.score_cheese ?? 0), 0) / (allReviews.length || 1)
+  const avgToppings = allReviews.reduce((s, r) => s + (r.score_toppings ?? 0), 0) / (allReviews.length || 1)
+  const avgValue    = allReviews.reduce((s, r) => s + (r.score_value ?? 0), 0) / (allReviews.length || 1)
 
   // Fetch Google photos
   useEffect(() => {
@@ -205,7 +223,7 @@ export default function PlaceDetail({ place, reviews, currentUserId, initialWish
       </div>
 
       {/* Score breakdown toggle */}
-      {reviews.length > 0 && (
+      {allReviews.length > 0 && (
         <div className="mx-4 mt-2">
           <button
             onClick={() => setShowBreakdown((v) => !v)}
@@ -216,11 +234,11 @@ export default function PlaceDetail({ place, reviews, currentUserId, initialWish
           </button>
           {showBreakdown && (
             <div className="py-3 space-y-2.5">
-              <ScoreBar label="Crust"    value={reviews.length ? avgCrust : null} />
-              <ScoreBar label="Sauce"    value={reviews.length ? avgSauce : null} />
-              <ScoreBar label="Cheese"   value={reviews.length ? avgCheese : null} />
-              <ScoreBar label="Toppings" value={reviews.length ? avgToppings : null} />
-              <ScoreBar label="Value"    value={reviews.length ? avgValue : null} />
+              <ScoreBar label="Crust"    value={allReviews.length ? avgCrust : null} />
+              <ScoreBar label="Sauce"    value={allReviews.length ? avgSauce : null} />
+              <ScoreBar label="Cheese"   value={allReviews.length ? avgCheese : null} />
+              <ScoreBar label="Toppings" value={allReviews.length ? avgToppings : null} />
+              <ScoreBar label="Value"    value={allReviews.length ? avgValue : null} />
             </div>
           )}
         </div>
@@ -248,11 +266,11 @@ export default function PlaceDetail({ place, reviews, currentUserId, initialWish
       </div>
 
       {/* Recent reviews */}
-      {reviews.length > 0 && (
+      {allReviews.length > 0 && (
         <div className="px-4 mt-5">
-          <h2 className="text-base font-bold text-gray-900 mb-3">Recent reviews</h2>
+          <h2 className="text-base font-bold text-gray-900 mb-3">Reviews ({allReviews.length}{hasMore ? '+' : ''})</h2>
           <div className="space-y-4">
-            {reviews.map((review) => (
+            {allReviews.map((review) => (
               <div key={review.id} className="flex gap-3">
                 <Avatar
                   username={review.users?.username ?? '?'}
@@ -283,6 +301,15 @@ export default function PlaceDetail({ place, reviews, currentUserId, initialWish
               </div>
             ))}
           </div>
+          {hasMore && (
+            <button
+              onClick={loadMore}
+              disabled={loadingMore}
+              className="w-full mt-4 py-2.5 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600 disabled:opacity-50"
+            >
+              {loadingMore ? 'Loading…' : 'Load more reviews'}
+            </button>
+          )}
         </div>
       )}
 
