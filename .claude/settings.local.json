@@ -53,7 +53,10 @@
       "Bash(python3 scripts/office/unpack.py \"/Users/janak/Downloads/Slicelist_Build_Plan_v5.docx\" /tmp/slicelist_unpacked/)",
       "Bash(unzip -o \"/Users/janak/Downloads/Slicelist_Build_Plan_v5.docx\" -d slicelist_plan_unpacked)",
       "Bash(node -e ':*)",
-      "Bash(npx next:*)"
+      "Bash(npx next:*)",
+      "Bash(xargs ls:*)",
+      "Bash(grep -r \"import.*from\\\\|export\" /Users/janak/Desktop/Slicelist --include=\"*.ts\" --include=\"*.tsx\" ! -path \"*/node_modules/*\" ! -path \"*/.next/*\")",
+      "Bash(grep -r \"middleware\\\\|sw.js\" /Users/janak/Desktop/Slicelist --include=\"*.ts\" --include=\"*.tsx\" ! -path \"*/node_modules/*\" ! -path \"*/.next/*\")"
     ]
   }
 }
