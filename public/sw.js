@@ -1,7 +1,7 @@
-// Slicelist Service Worker v3
+// Slicelist Service Worker v4
 // Strategy: cache-first for static assets only.
 // API routes, dynamic pages, and Supabase data always go to network.
-const CACHE_NAME = 'slicelist-v3'
+const CACHE_NAME = 'slicelist-v4'
 
 self.addEventListener('install', (event) => {
   self.skipWaiting()

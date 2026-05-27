@@ -28,7 +28,11 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   // Public routes — always accessible
-  const isPublic = pathname === '/' || pathname.startsWith('/auth/')
+  const isPublic =
+    pathname === '/' ||
+    pathname.startsWith('/auth/') ||
+    pathname === '/manifest.json' ||
+    pathname.startsWith('/icons/')
   if (!isPublic && !user) {
     return NextResponse.redirect(new URL('/', request.url))
   }
@@ -43,6 +47,6 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|manifest\\.json|icons/|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 }
